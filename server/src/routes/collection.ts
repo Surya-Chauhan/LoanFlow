@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import Loan from '../models/Loan';
 import Payment from '../models/Payment';
 import Notification from '../models/Notification';
+import AuditLog from '../models/AuditLog';
 
 const router = Router();
 router.use(authenticate, authorize('admin', 'collection'));
@@ -130,6 +131,13 @@ router.post(
         message: `Payment of ₹${Number(amount).toLocaleString('en-IN')} received (UTR: ${utrNumber.toUpperCase()}).`,
         loanId: loan._id,
         borrowerId: loan.borrowerId,
+      });
+      await AuditLog.create({
+        userId: req.user!.userId,
+        action: loanClosed ? 'RECORD_PAYMENT_CLOSED' : 'RECORD_PAYMENT',
+        entity: 'Payment',
+        entityId: payment._id,
+        remarks: `Payment ₹${Number(amount).toLocaleString('en-IN')} (UTR: ${utrNumber.toUpperCase()})${loanClosed ? ' — loan closed' : ''}`,
       });
 
       res.status(201).json({

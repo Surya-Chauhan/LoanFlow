@@ -5,6 +5,8 @@ import Loan from '../models/Loan';
 import Payment from '../models/Payment';
 import DocumentModel from '../models/Document';
 import Notification from '../models/Notification';
+import AuditLog from '../models/AuditLog';
+import LoanProduct from '../models/LoanProduct';
 import { calculateLoan } from '../utils/loanCalculator';
 
 const router = Router();
@@ -81,12 +83,12 @@ router.get('/loans', async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     // Reuse the same search approach as /admin/customers: match borrower
-    // name/email or loan ID. Borrower is populated after the query, so we
+    // name/email/PAN or loan ID. Borrower is populated after the query, so we
     // resolve matching borrower IDs first when a search term is present.
     if (search) {
       const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       const matched = await User.find({
-        $or: [{ name: regex }, { email: regex }],
+        $or: [{ name: regex }, { email: regex }, { pan: regex }],
       }).select('_id');
       const borrowerIds = matched.map((u) => u._id);
       filter.$or = [
@@ -268,6 +270,107 @@ router.get('/notifications', async (req: AuthRequest, res: Response): Promise<vo
     });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to fetch notifications.' });
+  }
+});
+
+// GET /api/admin/audit-logs
+// Returns paginated audit logs (every loan/payment status change is captured).
+// Reuses the AuditLog model.
+router.get('/audit-logs', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1')));
+    const limit = Math.max(1, parseInt(String(req.query.limit || '15')));
+    const skip = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      AuditLog.find()
+        .populate('userId', 'name email')
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit),
+      AuditLog.countDocuments(),
+    ]);
+
+    const data = logs.map((log) => {
+      const user = log.userId as unknown as { _id: string; name: string; email: string } | undefined;
+      return {
+        _id: log._id,
+        action: log.action,
+        entity: log.entity,
+        entityId: log.entityId,
+        remarks: log.remarks,
+        user: user ? { name: user.name, email: user.email } : null,
+        timestamp: log.timestamp,
+      };
+    });
+
+    res.status(200).json({ success: true, data: { data, total, page, limit } });
+  } catch {
+    res.status(500).json({ success: false, message: 'Failed to fetch audit logs.' });
+  }
+});
+
+// ─── Loan Products (Super Admin configurable) ──────────────
+// Reuses the LoanProduct model. Minimal CRUD — no new architecture.
+
+// GET /api/admin/loan-products — list all products
+router.get('/loan-products', async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const products = await LoanProduct.find().sort({ createdAt: 1 });
+    res.status(200).json({ success: true, data: products });
+  } catch {
+    res.status(500).json({ success: false, message: 'Failed to fetch loan products.' });
+  }
+});
+
+// POST /api/admin/loan-products — create a product
+router.post('/loan-products', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, minAmount, maxAmount, interestRate, maxTenure, processingFee, active } = req.body;
+    if (!name || minAmount == null || maxAmount == null || interestRate == null || maxTenure == null) {
+      res.status(400).json({ success: false, message: 'name, minAmount, maxAmount, interestRate, maxTenure are required.' });
+      return;
+    }
+    const product = await LoanProduct.create({
+      name,
+      minAmount,
+      maxAmount,
+      interestRate,
+      maxTenure,
+      processingFee: processingFee ?? 0,
+      active: active ?? true,
+    });
+    await AuditLog.create({
+      userId: req.user!.userId,
+      action: 'CREATE_LOAN_PRODUCT',
+      entity: 'LoanProduct',
+      entityId: product._id,
+      remarks: `Created loan product: ${name}`,
+    });
+    res.status(201).json({ success: true, data: product });
+  } catch {
+    res.status(500).json({ success: false, message: 'Failed to create loan product.' });
+  }
+});
+
+// PUT /api/admin/loan-products/:id — update a product
+router.put('/loan-products/:id', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const product = await LoanProduct.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Loan product not found.' });
+      return;
+    }
+    await AuditLog.create({
+      userId: req.user!.userId,
+      action: 'UPDATE_LOAN_PRODUCT',
+      entity: 'LoanProduct',
+      entityId: product._id,
+      remarks: `Updated loan product: ${product.name}`,
+    });
+    res.status(200).json({ success: true, data: product });
+  } catch {
+    res.status(500).json({ success: false, message: 'Failed to update loan product.' });
   }
 });
 

@@ -3,6 +3,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import Loan from '../models/Loan';
 import DocumentModel from '../models/Document';
 import Notification from '../models/Notification';
+import AuditLog from '../models/AuditLog';
 
 const router = Router();
 router.use(authenticate, authorize('admin', 'disbursement'));
@@ -71,6 +72,13 @@ router.patch('/loans/:id/disburse', async (req: AuthRequest, res: Response): Pro
       message: `Loan of ₹${loan.amount.toLocaleString('en-IN')} disbursed to borrower.`,
       loanId: loan._id,
       borrowerId: loan.borrowerId,
+    });
+    await AuditLog.create({
+      userId: req.user!.userId,
+      action: 'DISBURSE_LOAN',
+      entity: 'Loan',
+      entityId: loan._id,
+      remarks: `Loan disbursed (₹${loan.amount.toLocaleString('en-IN')})`,
     });
     res.status(200).json({ success: true, message: 'Loan disbursed.', data: { status: loan.status, disbursedAt: loan.disbursedAt } });
   } catch {

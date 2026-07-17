@@ -14,22 +14,32 @@ import { errorHandler, notFound } from './middleware/errorHandler';
 
 const app: Application = express();
 
-//CORS 
-// Allow localhost:3000 and any FRONTEND_URL set in .env
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:3000',
+// CORS
+// Allow the Vercel frontend (FRONTEND_URL), any comma-separated ALLOWED_ORIGINS,
+// and localhost dev origins. No hardcoded production URLs.
+const envOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.ALLOWED_ORIGINS,
+]
+  .filter(Boolean)
+  .flatMap((v) => v!.split(',').map((s) => s.trim()))
+  .filter(Boolean);
+
+const devOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:3001',
 ];
 
+const allowedOrigins = Array.from(new Set([...envOrigins, ...devOrigins]));
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (curl, Postman, mobile apps)
+    // Allow requests with no origin (curl, Postman, server-to-server, mobile apps)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    // In development, allow all localhost origins
-    if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+    // In development, allow any localhost origin
+    if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
       return callback(null, true);
     }
     callback(new Error(`CORS: origin ${origin} not allowed`));

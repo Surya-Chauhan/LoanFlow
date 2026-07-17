@@ -108,6 +108,75 @@ function downloadCsv(csv: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+// ─── Excel export (HTML table → .xls, opens natively in Excel) ──
+function buildXls(loans: Loan[]): string {
+  const headers = ["Loan ID", "Customer Name", "Customer Email", "Loan Amount", "Interest Rate", "Simple Interest", "Tenure (days)", "Total Repayment", "Status", "Created Date"];
+  const rows = loans.map((loan) => {
+    const borrower = typeof loan.borrower === "object" ? loan.borrower : null;
+    const cfg = loan.loanConfig;
+    return [
+      loan._id, borrower?.name || "", borrower?.email || "",
+      cfg?.amount ?? "", cfg?.interestRate ?? "", cfg?.simpleInterest ?? "",
+      cfg?.tenure ?? "", cfg?.totalRepayment ?? "", loan.status,
+      loan.createdAt ? new Date(loan.createdAt).toISOString().slice(0, 10) : "",
+    ];
+  });
+  // Minimal escaping: strip characters that break HTML table cells.
+  const escape = (v: string | number) => String(v).replace(/[<>&]/g, " ");
+  const body = [headers, ...rows]
+    .map((r) => `<tr>${r.map((c) => `<td>${escape(c)}</td>`).join("")}</tr>`)
+    .join("");
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><table border="1">${body}</table></body></html>`;
+}
+
+function downloadXls(xls: string, filename: string) {
+  const blob = new Blob([xls], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// ─── PDF export (printable view → user saves as PDF, no dependency) ──
+function downloadPdf(loans: Loan[]) {
+  const rows = loans.map((loan) => {
+    const borrower = typeof loan.borrower === "object" ? loan.borrower : null;
+    const cfg = loan.loanConfig;
+    return `<tr>
+      <td>${loan._id}</td><td>${borrower?.name || ""}</td><td>${borrower?.email || ""}</td>
+      <td>${cfg?.amount ?? ""}</td><td>${cfg?.interestRate ?? ""}%</td><td>${cfg?.tenure ?? ""}</td>
+      <td>${cfg?.totalRepayment ?? ""}</td><td>${loan.status}</td>
+    </tr>`;
+  }).join("");
+  const html = `<html><head><title>LoanFlow Report</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}
+      h1{font-size:18px;margin-bottom:4px} p{color:#64748b;font-size:12px;margin-top:0}
+      table{width:100%;border-collapse:collapse;margin-top:16px;font-size:11px}
+      th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left}
+      th{background:#f1f5f9;font-weight:600}
+    </style></head>
+    <body>
+      <h1>LoanFlow — Loan Register Report</h1>
+      <p>Generated on ${new Date().toLocaleString("en-IN")} • Total records: ${loans.length}</p>
+      <table>
+        <thead><tr><th>Loan ID</th><th>Customer</th><th>Email</th><th>Amount</th><th>Rate</th><th>Tenure</th><th>Total Repayment</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </body></html>`;
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  }
+}
+
 // ─── Reports Content ─────────────────────────────────────
 function ReportsContent() {
   const [overview, setOverview] = useState<OverviewData | null>(null);
@@ -130,7 +199,7 @@ function ReportsContent() {
     fetchOverview();
   }, [fetchOverview]);
 
-  const handleExport = async () => {
+  const handleExport = async (format: "csv" | "excel" | "pdf") => {
     setExporting(true);
     try {
       // Fetch all loans across pages reusing the existing admin loans endpoint
@@ -152,12 +221,17 @@ function ReportsContent() {
         return;
       }
 
-      const csv = buildCsv(allLoans);
       const dateStr = new Date().toISOString().slice(0, 10);
-      downloadCsv(csv, `loanflow-loans-${dateStr}.csv`);
-      toast.success(`Exported ${allLoans.length} loans to CSV`);
+      if (format === "csv") {
+        downloadCsv(buildCsv(allLoans), `loanflow-loans-${dateStr}.csv`);
+      } else if (format === "excel") {
+        downloadXls(buildXls(allLoans), `loanflow-loans-${dateStr}.xls`);
+      } else {
+        downloadPdf(allLoans);
+      }
+      toast.success(`Exported ${allLoans.length} loans (${format.toUpperCase()})`);
     } catch {
-      toast.error("Failed to export CSV");
+      toast.error(`Failed to export ${format.toUpperCase()}`);
     } finally {
       setExporting(false);
     }
@@ -186,14 +260,30 @@ function ReportsContent() {
             <p className="text-slate-500 text-sm">Loan portfolio summary and data export</p>
           </div>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
-        >
-          {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
-          {exporting ? "Exporting..." : "Export CSV"}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => handleExport("csv")}
+            disabled={exporting}
+            className="btn-primary flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
+            {exporting ? "Exporting..." : "Export CSV"}
+          </button>
+          <button
+            onClick={() => handleExport("excel")}
+            disabled={exporting}
+            className="btn-secondary flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <FileSpreadsheet size={16} /> Excel
+          </button>
+          <button
+            onClick={() => handleExport("pdf")}
+            disabled={exporting}
+            className="btn-secondary flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <FileText size={16} /> PDF
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}

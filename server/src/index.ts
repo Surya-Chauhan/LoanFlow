@@ -1,8 +1,17 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import fs from 'fs';
+import path from 'path';
 import app from './app';
 import connectDB from './config/database';
+
+// Ensure the uploads directory exists so static file serving works on
+// platforms (e.g. Render) where the directory may not be present at startup.
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 const PORT = process.env.PORT || 5000;
 

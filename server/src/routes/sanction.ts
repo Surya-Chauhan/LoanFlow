@@ -5,6 +5,7 @@ import Loan from '../models/Loan';
 import User from '../models/User';
 import DocumentModel from '../models/Document';
 import Notification from '../models/Notification';
+import AuditLog from '../models/AuditLog';
 
 const router = Router();
 router.use(authenticate, authorize('admin', 'sanction'));
@@ -81,6 +82,13 @@ router.patch('/loans/:id/approve', async (req: AuthRequest, res: Response): Prom
       loanId: loan._id,
       borrowerId: loan.borrowerId,
     });
+    await AuditLog.create({
+      userId: req.user!.userId,
+      action: 'APPROVE_LOAN',
+      entity: 'Loan',
+      entityId: loan._id,
+      remarks: `Loan sanctioned (₹${loan.amount.toLocaleString('en-IN')})`,
+    });
     res.status(200).json({ success: true, message: 'Loan sanctioned.', data: { status: loan.status } });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to sanction loan.' });
@@ -112,6 +120,13 @@ router.patch(
         message: `Loan of ₹${loan.amount.toLocaleString('en-IN')} rejected. Reason: ${req.body.reason}`,
         loanId: loan._id,
         borrowerId: loan.borrowerId,
+      });
+      await AuditLog.create({
+        userId: req.user!.userId,
+        action: 'REJECT_LOAN',
+        entity: 'Loan',
+        entityId: loan._id,
+        remarks: `Loan rejected. Reason: ${req.body.reason}`,
       });
       res.status(200).json({ success: true, message: 'Loan rejected.', data: { status: loan.status } });
     } catch {

@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Role } from "@/types";
 import { dashboardApi } from "@/lib/api";
 import {
-  TrendingUp, Users, Shield, Banknote, CreditCard, LayoutDashboard, UserCheck, Receipt, BarChart3, FolderOpen, CalendarClock, Bell,
+  TrendingUp, Users, Shield, Banknote, CreditCard, LayoutDashboard, UserCheck, Receipt, BarChart3, FolderOpen, CalendarClock, Bell, History as HistoryIcon, Package,
   CheckCircle2, XCircle, IndianRupee,
   LogOut, Menu, X, ChevronRight
 } from "lucide-react";
@@ -197,6 +197,20 @@ const navItems: NavItem[] = [
     icon: CalendarClock,
     roles: ["admin"],
     color: "text-orange-600",
+  },
+  {
+    href: "/dashboard/audit",
+    label: "Audit Logs",
+    icon: HistoryIcon,
+    roles: ["admin"],
+    color: "text-slate-600",
+  },
+  {
+    href: "/dashboard/products",
+    label: "Loan Products",
+    icon: Package,
+    roles: ["admin"],
+    color: "text-amber-600",
   },
 ];
 

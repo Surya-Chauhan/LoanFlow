@@ -146,6 +146,17 @@ export const dashboardApi = {
     const params = new URLSearchParams({ limit: String(limit) });
     return api.get(`/admin/notifications?${params.toString()}`);
   },
+
+  // Audit logs (database-backed, captures loan/payment status changes)
+  getAuditLogs: (page = 1, limit = 15) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    return api.get(`/admin/audit-logs?${params.toString()}`);
+  },
+
+  // Loan Products (Super Admin configurable)
+  getLoanProducts: () => api.get(`/admin/loan-products`),
+  createLoanProduct: (data: Record<string, unknown>) => api.post(`/admin/loan-products`, data),
+  updateLoanProduct: (id: string, data: Record<string, unknown>) => api.put(`/admin/loan-products/${id}`, data),
 };
 
 // Build an absolute URL for a static upload path (e.g. "/uploads/abc.pdf")
