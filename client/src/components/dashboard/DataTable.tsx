@@ -1,7 +1,7 @@
 "use client";
 // src/components/dashboard/DataTable.tsx
 import React from "react";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 
 interface Column<T> {
   key: string;
@@ -45,18 +45,24 @@ export function DataTable<T>({
           </thead>
           <tbody className="divide-y divide-slate-50">
             {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="text-center py-16">
-                  <Loader2 size={28} className="animate-spin text-brand-400 mx-auto" />
-                  <p className="text-slate-400 text-sm mt-3">Loading data...</p>
-                </td>
-              </tr>
+              Array.from({ length: Math.min(limit, 6) }).map((_, i) => (
+                <tr key={`sk-${i}`} className="border-b border-slate-50">
+                  {columns.map((col) => (
+                    <td key={col.key} className="px-5 py-4">
+                      <div className="skeleton h-4 w-full max-w-[140px]" />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="text-center py-16">
-                  <div className="flex flex-col items-center gap-3">
-                    {emptyIcon && <div className="text-slate-300">{emptyIcon}</div>}
+                <td colSpan={columns.length} className="text-center py-20">
+                  <div className="flex flex-col items-center gap-3 animate-fade-up">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300">
+                      {emptyIcon || <Inbox size={26} />}
+                    </div>
                     <p className="text-slate-400 font-medium">{emptyMessage || "No data found"}</p>
+                    <p className="text-xs text-slate-300">Data will appear here once available</p>
                   </div>
                 </td>
               </tr>
@@ -64,7 +70,7 @@ export function DataTable<T>({
               data.map((row, idx) => (
                 <tr
                   key={idx}
-                  className="hover:bg-slate-50/70 transition-colors duration-100"
+                  className="hover:bg-slate-50/70 transition-colors duration-150 hover:shadow-sm"
                 >
                   {columns.map((col) => (
                     <td key={col.key} className="px-5 py-4 text-sm text-slate-700">

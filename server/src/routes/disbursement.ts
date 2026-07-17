@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import Loan from '../models/Loan';
 import DocumentModel from '../models/Document';
+import Notification from '../models/Notification';
 
 const router = Router();
 router.use(authenticate, authorize('admin', 'disbursement'));
@@ -65,6 +66,12 @@ router.patch('/loans/:id/disburse', async (req: AuthRequest, res: Response): Pro
     loan.disbursedBy = req.user!.userId as unknown as import('mongoose').Types.ObjectId;
     loan.disbursedAt = new Date();
     await loan.save();
+    await Notification.create({
+      type: 'loan_disbursed',
+      message: `Loan of ₹${loan.amount.toLocaleString('en-IN')} disbursed to borrower.`,
+      loanId: loan._id,
+      borrowerId: loan.borrowerId,
+    });
     res.status(200).json({ success: true, message: 'Loan disbursed.', data: { status: loan.status, disbursedAt: loan.disbursedAt } });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to disburse loan.' });

@@ -113,4 +113,46 @@ export const dashboardApi = {
 
   // Admin
   getOverview: () => api.get("/admin/overview"),
+
+  // Customers (reuses Borrower/User model — no separate Customer entity)
+  getCustomers: (page = 1, limit = 10, search = "") => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search.trim()) params.set("search", search.trim());
+    return api.get(`/admin/customers?${params.toString()}`);
+  },
+
+  // Loans (unified list — reuses Loan model; actions reuse sanction/disbursement endpoints)
+  getLoans: (page = 1, limit = 10, status = "", search = "") => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status.trim()) params.set("status", status.trim());
+    if (search.trim()) params.set("search", search.trim());
+    return api.get(`/admin/loans?${params.toString()}`);
+  },
+
+  // Documents (reuses Document model; files served statically at /uploads)
+  getDocuments: (page = 1, limit = 10) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    return api.get(`/admin/documents?${params.toString()}`);
+  },
+
+  // EMI schedules (reuses Loan + Payment models; EMI from calculateLoan)
+  getEmiSchedules: (page = 1, limit = 10) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    return api.get(`/admin/emi?${params.toString()}`);
+  },
+
+  // Notifications (database-backed, no websocket)
+  getNotifications: (limit = 20) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    return api.get(`/admin/notifications?${params.toString()}`);
+  },
 };
+
+// Build an absolute URL for a static upload path (e.g. "/uploads/abc.pdf")
+// served by the server. API_URL is like "http://localhost:5000/api",
+// so we strip the trailing "/api" to get the server origin.
+export function getFileUrl(path: string): string {
+  if (/^https?:\/\//.test(path)) return path;
+  const base = API_URL.replace(/\/api\/?$/, "");
+  return `${base}${path}`;
+}

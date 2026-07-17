@@ -94,3 +94,21 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
 }
+
+// Customer = Borrower (User with role "borrower"). Reused, not a new model.
+export interface Customer {
+  _id: string;
+  name: string;
+  email: string;
+  pan: string | null;
+  employmentMode: string | null;
+  monthlySalary: number | null;
+  breStatus: "pending" | "passed" | "failed";
+  isProfileComplete: boolean;
+  createdAt: string;
+  // Application status = latest loan status (null if no application yet)
+  applicationStatus: LoanStatus | null;
+  // Current loan amount (latest loan)
+  loanAmount: number | null;
+  loanId: string | null;
+}

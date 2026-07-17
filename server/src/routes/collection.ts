@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import Loan from '../models/Loan';
 import Payment from '../models/Payment';
+import Notification from '../models/Notification';
 
 const router = Router();
 router.use(authenticate, authorize('admin', 'collection'));
@@ -123,6 +124,13 @@ router.post(
         await loan.save();
         loanClosed = true;
       }
+
+      await Notification.create({
+        type: 'payment_received',
+        message: `Payment of ₹${Number(amount).toLocaleString('en-IN')} received (UTR: ${utrNumber.toUpperCase()}).`,
+        loanId: loan._id,
+        borrowerId: loan.borrowerId,
+      });
 
       res.status(201).json({
         success: true,

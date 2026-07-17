@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import Loan from '../models/Loan';
 import User from '../models/User';
 import DocumentModel from '../models/Document';
+import Notification from '../models/Notification';
 
 const router = Router();
 router.use(authenticate, authorize('admin', 'sanction'));
@@ -74,6 +75,12 @@ router.patch('/loans/:id/approve', async (req: AuthRequest, res: Response): Prom
     loan.sanctionedBy = req.user!.userId as unknown as import('mongoose').Types.ObjectId;
     loan.sanctionedAt = new Date();
     await loan.save();
+    await Notification.create({
+      type: 'loan_approved',
+      message: `Loan of ₹${loan.amount.toLocaleString('en-IN')} approved for borrower.`,
+      loanId: loan._id,
+      borrowerId: loan.borrowerId,
+    });
     res.status(200).json({ success: true, message: 'Loan sanctioned.', data: { status: loan.status } });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to sanction loan.' });
@@ -100,6 +107,12 @@ router.patch(
       loan.status = 'rejected';
       loan.rejectionReason = req.body.reason;
       await loan.save();
+      await Notification.create({
+        type: 'loan_rejected',
+        message: `Loan of ₹${loan.amount.toLocaleString('en-IN')} rejected. Reason: ${req.body.reason}`,
+        loanId: loan._id,
+        borrowerId: loan.borrowerId,
+      });
       res.status(200).json({ success: true, message: 'Loan rejected.', data: { status: loan.status } });
     } catch {
       res.status(500).json({ success: false, message: 'Failed to reject loan.' });

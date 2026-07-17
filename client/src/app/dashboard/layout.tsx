@@ -5,10 +5,119 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { Role } from "@/types";
+import { dashboardApi } from "@/lib/api";
 import {
-  TrendingUp, Users, Shield, Banknote, CreditCard,
-  LayoutDashboard, LogOut, Menu, X, ChevronRight
+  TrendingUp, Users, Shield, Banknote, CreditCard, LayoutDashboard, UserCheck, Receipt, BarChart3, FolderOpen, CalendarClock, Bell,
+  CheckCircle2, XCircle, IndianRupee,
+  LogOut, Menu, X, ChevronRight
 } from "lucide-react";
+
+interface AppNotification {
+  _id: string;
+  type: "loan_approved" | "loan_rejected" | "loan_disbursed" | "payment_received";
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
+const NOTIFICATION_ICONS: Record<AppNotification["type"], React.ElementType> = {
+  loan_approved: CheckCircle2,
+  loan_rejected: XCircle,
+  loan_disbursed: Banknote,
+  payment_received: IndianRupee,
+};
+
+// ─── Notification Bell Dropdown ───────────────────────────
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<AppNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const fetchNotifications = async () => {
+    setLoading(true);
+    try {
+      const res = await dashboardApi.getNotifications(20);
+      setItems(res.data.data.data);
+      setUnread(res.data.data.unread);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Light polling (no websocket) every 30s
+    const id = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition"
+      >
+        <Bell size={18} />
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-2xl border border-slate-100 shadow-xl z-50 overflow-hidden animate-fade-up">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <p className="font-display font-bold text-slate-800 text-sm">Notifications</p>
+              {unread > 0 && (
+                <span className="text-xs text-red-500 font-medium">{unread} new</span>
+              )}
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {loading && items.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">Loading...</p>
+              ) : items.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">No notifications yet</p>
+              ) : (
+                items.map((n) => {
+                  const Icon = NOTIFICATION_ICONS[n.type];
+                  return (
+                    <div
+                      key={n._id}
+                      className={`flex items-start gap-3 px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition ${
+                        n.read ? "" : "bg-brand-50/40"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                        <Icon size={15} className="text-slate-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-700 leading-snug">{n.message}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {new Date(n.createdAt).toLocaleString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface NavItem {
   href: string;
@@ -19,6 +128,13 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  {
+    href: "/dashboard",
+    label: "Overview",
+    icon: LayoutDashboard,
+    roles: ["admin"],
+    color: "text-slate-600",
+  },
   {
     href: "/dashboard/sales",
     label: "Sales",
@@ -46,6 +162,41 @@ const navItems: NavItem[] = [
     icon: CreditCard,
     roles: ["admin", "collection"],
     color: "text-emerald-600",
+  },
+  {
+    href: "/dashboard/customers",
+    label: "Customers",
+    icon: UserCheck,
+    roles: ["admin"],
+    color: "text-rose-600",
+  },
+  {
+    href: "/dashboard/loans",
+    label: "Loans",
+    icon: Receipt,
+    roles: ["admin"],
+    color: "text-indigo-600",
+  },
+  {
+    href: "/dashboard/reports",
+    label: "Reports",
+    icon: BarChart3,
+    roles: ["admin"],
+    color: "text-cyan-600",
+  },
+  {
+    href: "/dashboard/documents",
+    label: "Documents",
+    icon: FolderOpen,
+    roles: ["admin"],
+    color: "text-teal-600",
+  },
+  {
+    href: "/dashboard/emi",
+    label: "EMI Schedule",
+    icon: CalendarClock,
+    roles: ["admin"],
+    color: "text-orange-600",
   },
 ];
 
@@ -113,7 +264,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-3">Modules</p>
         {allowedNav.map((item) => {
           const Icon = item.icon;
-          const active = pathname.startsWith(item.href);
+          const active = item.href === "/dashboard" 
+            ? pathname === "/dashboard" 
+            : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
@@ -193,6 +346,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <span className={`badge ${roleColors[user.role] || "bg-slate-500"} text-white text-xs capitalize`}>
               {user.role}
             </span>
